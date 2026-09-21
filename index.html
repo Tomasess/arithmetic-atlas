@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="index,follow">
-  <meta name="description" content="Jason 的算术电路学习导航：数制、Booth 乘法器、除法、浮点计算与 PPA 优化。">
+  <meta name="description" content="Jason 的算术电路学习导航：数制、Booth 乘法器、除法、浮点计算、PPA 优化与脉动阵列实践。">
   <link rel="canonical" href="https://tomasess.github.io/arithmetic-atlas/">
   <meta name="theme-color" content="#234f43">
   <title>算术之间 · Arithmetic Atlas</title>
@@ -20,6 +20,7 @@
     <nav class="main-nav" aria-label="主导航">
       <a class="nav-item active" href="#overview" data-nav="overview"><span data-icon="grid"></span>学习概览</a>
       <a class="nav-item" href="#roadmap" data-nav="roadmap"><span data-icon="route"></span>学习路线<span class="nav-count">06</span></a>
+      <a class="nav-item" href="#projects" data-nav="projects"><span data-icon="chip"></span>实践作品<span class="nav-count">01</span></a>
       <a class="nav-item" href="#library" data-nav="library"><span data-icon="book"></span>资料书架<span class="nav-count" id="nav-total">22</span></a>
     </nav>
     <div class="sidebar-label">探索主题</div>
@@ -44,8 +45,32 @@
         <div id="route-grid" class="route-grid"></div>
         <div id="stage-panel" class="stage-panel" hidden></div>
       </section>
+      <section id="projects" class="section projects" aria-labelledby="projects-title">
+        <div class="section-heading"><div><span class="section-kicker">02 / BUILD NOTES</span><h2 id="projects-title">把数据流真正跑起来</h2><p>从公式走向时钟周期：用可视化记录自己做过的算术数据通路。</p></div><span class="quiet-label">原创演示 · 58 秒</span></div>
+        <article class="project-showcase">
+          <div class="project-media">
+            <video id="systolic-demo" controls preload="metadata" playsinline poster="./assets/tpu-systolic-poster.jpg" aria-label="TPU 脉动阵列矩阵乘法时钟级动画">
+              <source src="./assets/tpu-systolic-scene.mp4" type="video/mp4">
+              当前浏览器无法播放视频。<a href="./assets/tpu-systolic-scene.mp4">下载 MP4 文件</a>
+            </video>
+            <div class="video-caption"><span>OUTPUT · C = A × W</span><span>1920 × 1080 · H.264</span></div>
+          </div>
+          <div class="project-copy">
+            <div class="project-eyebrow">ORIGINAL VISUALIZATION · SHUZONG</div>
+            <h3>TPU 脉动阵列矩阵乘法</h3>
+            <p>在 3×3 权重驻留 PE 阵列中，先预载权重，再将输入矩阵按对角线错位注入。动画逐拍展示激活值传播、局部乘加与结果矩阵形成的过程。</p>
+            <ul class="project-points">
+              <li><strong>权重驻留</strong><span>W 固定在 PE 内，降低重复搬运。</span></li>
+              <li><strong>斜向注入</strong><span>输入错位排队，使同一波前的数据在阵列中对齐。</span></li>
+              <li><strong>局部累加</strong><span>每个 PE 逐拍执行乘加，部分和随数据流演进。</span></li>
+              <li><strong>填充与排空</strong><span>从 Cycle 0 到 10，观察阵列延迟与最终输出。</span></li>
+            </ul>
+            <div class="project-equation"><span>A × W = C</span><small>3 × 3 PE ARRAY · CYCLE 0 → 10</small></div>
+          </div>
+        </article>
+      </section>
       <section id="library" class="section library" aria-labelledby="library-title">
-        <div class="section-heading"><div><span class="section-kicker">02 / CURATED LIBRARY</span><h2 id="library-title">值得反复翻开的资料</h2><p>经典教材、原始论文与可阅读的实现；每条资料都附有来源和阅读建议。</p></div><button class="text-btn" id="source-policy"><span data-icon="shield"></span>收录原则</button></div>
+        <div class="section-heading"><div><span class="section-kicker">03 / CURATED LIBRARY</span><h2 id="library-title">值得反复翻开的资料</h2><p>经典教材、原始论文与可阅读的实现；每条资料都附有来源和阅读建议。</p></div><button class="text-btn" id="source-policy"><span data-icon="shield"></span>收录原则</button></div>
         <div class="search-controls"><div class="search-box"><span data-icon="search"></span><input id="search" type="search" placeholder="搜索标题、作者、关键词，例如 Booth、SRT、舍入…" aria-label="搜索资料" autocomplete="off"><kbd>/</kbd></div><label class="select-wrap"><span class="sr-only">资料类型</span><select id="type-filter"><option value="all">全部类型</option><option>教材</option><option>论文</option><option>讲义</option><option>标准</option><option>开源实现</option></select></label></div>
         <div id="filter-chips" class="filter-chips" role="group" aria-label="主题筛选"></div>
         <div class="results-toolbar"><div class="result-info" id="result-info" aria-live="polite"></div><div class="status-controls"><label class="free-toggle"><input id="free-filter" type="checkbox">免费可读</label><label><span class="sr-only">阅读状态筛选</span><select id="status-filter"><option value="all">全部状态</option><option value="unread">未读</option><option value="reading">在读</option><option value="read">已读</option></select></label><button id="reset-filters" class="reset-btn" hidden>清除筛选</button></div></div>
