@@ -221,7 +221,7 @@ dialog.addEventListener('close',()=>{currentResource=null;if(lastDialogTrigger?.
 document.addEventListener('keydown',e=>{if(e.key==='/'&&!dialog.open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();$('#search').focus();$('#library').scrollIntoView({behavior:'smooth'});}});
 window.addEventListener('storage',e=>{if(e.key===KEY){try{progress=e.newValue?cleanProgress(JSON.parse(e.newValue)):{read:[],reading:[],updatedAt:null};refreshProgress();renderResources();if(selectedStage)renderStagePanel();if(dialog.open&&!currentResource)dialog.close();if(currentResource)renderResourceDialog(currentResource);}catch{notify('其他标签页的进度无法读取，请检查备份。');}}});
 const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){$$('[data-nav]').forEach(n=>{n.classList.toggle('active',n.dataset.nav===entry.target.id);if(n.dataset.nav===entry.target.id)n.setAttribute('aria-current','location');else n.removeAttribute('aria-current');});}}},{rootMargin:'-15% 0px -50% 0px',threshold:0});
-['overview','roadmap','library'].forEach(id=>observer.observe(document.getElementById(id)));
+['overview','roadmap','projects','library'].forEach(id=>observer.observe(document.getElementById(id)));
 $('#nav-total').textContent=resources.length;$('#stat-total').textContent=resources.length;
 refreshProgress();renderTopicControls();renderResources();
 if(!storageOK)notify('本地记录无法读取或保存，建议导出进度备份。');
