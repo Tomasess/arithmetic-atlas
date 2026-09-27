@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "kdf": {
+    "name": "PBKDF2",
+    "hash": "SHA-256",
+    "iterations": 600000
+  },
+  "password": {
+    "salt": "220ee777a73a48c99a28f4b225e1574c",
+    "wrapped": "ZZeY8gxFtZPUXguuTgOZ3EwaNBMiBgj2wTu33pEXqBEOpAyuYWddz+bDZWQ5BQx1N6qZRrS9KWCS3tFW"
+  },
+  "recovery": {
+    "salt": "5cc78d72bd5007b3c8ff2335b5cd8dae",
+    "wrapped": "iUYT4qUf+T0+olsGMK3Ax9V3kiTEu4XMaNBPEHQxHcP0XVUp1sNu+ySValD2ruD8MS2mqwcl7QxaP6fW"
+  }
+}
