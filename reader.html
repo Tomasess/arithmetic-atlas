@@ -7,8 +7,8 @@
   <meta name="description" content="算术电路 PDF 个人阅读目录：在线解密个人资料，使用原有书签或核对过的实际页码导航，也支持本机文件。">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <title>PDF 阅读目录 · 算术之间</title>
-  <link rel="stylesheet" href="./reader.css?v=20260927-online">
-  <script type="module" src="./reader.js?v=20260927-password"></script>
+  <link rel="stylesheet" href="./reader.css?v=20260927-reset">
+  <script type="module" src="./reader.js?v=20260927-reset"></script>
 </head>
 <body>
   <a class="skip-link" href="#catalog-title">跳到 PDF 目录</a>
@@ -19,7 +19,7 @@
   <main class="reader-main">
     <section class="reader-intro" aria-labelledby="catalog-title">
       <div><span class="eyebrow">PERSONAL PDF READER / 08 DOCUMENTS</span><h1 id="catalog-title">给没有书签的 PDF，<br>补上一张可靠的目录。</h1><p>按主题整理你手头的 8 份资料。输入密码即可在线阅读、按章节跳转；也可以继续选择本机文件。</p></div>
-      <div class="privacy-card"><strong>在线文件已加密</strong><span>公开仓库只保存密文。密码或独立恢复码在浏览器内解开资料，不发送给站点；本次解锁只保留在当前标签页。</span></div>
+      <div class="privacy-card"><strong>当前在线文件已加密</strong><span>密码或独立恢复码只在浏览器内使用，本次解锁仅在当前标签页有效。公开 Git 历史中可能仍有旧版密文；旧密钥的历史访问无法通过修改当前密码撤销。</span></div>
     </section>
     <div class="reader-workspace">
       <aside class="catalog-panel" aria-label="已分类的 PDF">
@@ -31,7 +31,23 @@
         <div class="document-heading"><div><span id="document-kind" class="eyebrow">SELECT A DOCUMENT</span><h2 id="document-title">选择左侧资料开始阅读</h2><p id="document-summary">如果 PDF 本身没有书签，本站已为其中四份资料整理了章节页码；其他文件也可以自己添加目录。</p></div><div id="document-actions" class="document-actions" hidden><button id="open-online" class="primary-button" type="button">在线打开加密 PDF</button><button id="choose-file" class="secondary-button" type="button">选择本机 PDF</button><a id="source-link" href="#" target="_blank" rel="noopener noreferrer">查看出版方 / 作者来源 ↗</a></div></div>
         <form id="key-form" class="key-form"><label for="access-key">输入访问密码</label><div><input id="access-key" type="password" autocomplete="off" spellcheck="false" required placeholder="访问密码"><button type="submit">解锁 PDF</button></div><small id="key-state">密码和恢复码只在当前浏览器中处理，不会发送给网站。</small></form>
         <button id="recovery-help" class="recovery-help" type="button">忘记密码？使用恢复码</button>
-        <p id="recovery-note" class="recovery-note" hidden>恢复码可立即恢复阅读；全站密码重置需要站点所有者用 GitHub 写入权限更新加密配置。访客无法在这个页面更改站点密码。</p>
+        <p id="recovery-note" class="recovery-note" hidden>恢复码可立即恢复阅读。验证后可在这里生成新密码配置，站点所有者还需登录 GitHub 提交配置，才能让新密码在网站生效。</p>
+        <section id="reset-panel" class="reset-panel" aria-labelledby="reset-title" hidden>
+          <h3 id="reset-title">重置网站访问密码</h3>
+          <p>恢复码已经验证。输入新密码后，本页会在浏览器生成配置；只有拥有 GitHub 仓库写入权限的人能提交并启用它。恢复码和新密码不会写进配置。</p>
+          <form id="reset-form">
+            <label for="new-password">新密码（至少 16 个字符）</label>
+            <input id="new-password" type="password" minlength="16" autocomplete="new-password" required>
+            <label for="confirm-password">确认新密码</label>
+            <input id="confirm-password" type="password" minlength="16" autocomplete="new-password" required>
+            <button type="submit">生成新密码配置</button>
+          </form>
+          <div id="reset-result" class="reset-result" hidden>
+            <p>将下面的完整内容复制到 GitHub 上的 <code>vault/config.json</code>，提交到 <code>main</code> 分支。部署完成后新密码生效；请先验证新密码，再丢弃旧密码。</p>
+            <textarea id="reset-config" readonly spellcheck="false" aria-label="新密码配置"></textarea>
+            <div class="reset-actions"><button id="copy-config" type="button">复制配置</button><a href="https://github.com/Tomasess/arithmetic-atlas/edit/main/vault/config.json" target="_blank" rel="noopener noreferrer">登录 GitHub 编辑配置 ↗</a></div>
+          </div>
+        </section>
         <div id="reader-status" class="reader-status" role="status" aria-live="polite">未选择文件</div>
         <div id="reader-area" class="reader-area" hidden>
           <aside class="outline-panel" aria-label="章节目录">

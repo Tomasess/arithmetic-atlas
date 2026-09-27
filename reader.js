@@ -15,6 +15,8 @@ if (fragment.has('key')) history.replaceState(null,'',`${location.pathname}${loc
 let accessKey = null;
 let unlockMethod = null;
 let recoveryMode = false;
+let recoveryDataKey = null;
+let recoveryEnvelope = null;
 let chosen = null;
 let pdf = null;
 let currentPage = 1;
@@ -41,6 +43,7 @@ function renderKeyState() {
   $('recovery-help').hidden = Boolean(accessKey);
   $('recovery-help').textContent = recoveryMode ? '返回密码输入' : '忘记密码？使用恢复码';
   $('recovery-note').hidden = !recoveryMode || Boolean(accessKey);
+  $('reset-panel').hidden = !accessKey || unlockMethod !== 'recovery';
   $('access-key').value = '';
 }
 
@@ -57,7 +60,28 @@ async function unlockVault(secret, method) {
   const material = await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),'PBKDF2',false,['deriveKey']);
   const wrappingKey = await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:config.kdf.iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['decrypt']);
   const dataKey = await crypto.subtle.decrypt({name:'AES-GCM',iv:raw.slice(0,12),additionalData:wrapContext},wrappingKey,raw.slice(12));
-  return crypto.subtle.importKey('raw',dataKey,'AES-GCM',false,['decrypt']);
+  return {
+    key:await crypto.subtle.importKey('raw',dataKey,'AES-GCM',false,['decrypt']),
+    raw:method === 'recovery' ? new Uint8Array(dataKey) : null,
+    recoveryEnvelope:JSON.stringify(config.recovery)
+  };
+}
+
+async function createResetConfig(password) {
+  const response = await fetch('./vault/config.json?v=2',{cache:'no-store'});
+  if (!response.ok) throw new Error('CONFIG');
+  const config = await response.json();
+  if (config.version !== 2 || JSON.stringify(config.recovery) !== recoveryEnvelope || !recoveryDataKey) throw new Error('STALE');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const material = await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveKey']);
+  const key = await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:config.kdf.iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt']);
+  const wrapped = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:wrapContext},key,recoveryDataKey));
+  config.password = {
+    salt:Array.from(salt,byte=>byte.toString(16).padStart(2,'0')).join(''),
+    wrapped:btoa(String.fromCharCode(...iv,...wrapped))
+  };
+  return `${JSON.stringify(config,null,2)}\n`;
 }
 
 function setStatus(message, kind = '') {
@@ -344,6 +368,12 @@ $('key-form').addEventListener('submit', async event => {
     await releaseDocument();
     accessKey = null;
     unlockMethod = null;
+    recoveryDataKey?.fill(0);
+    recoveryDataKey = null;
+    recoveryEnvelope = null;
+    $('reset-form').reset();
+    $('reset-config').value = '';
+    $('reset-result').hidden = true;
     updateAddress();
     renderKeyState();
     setStatus('本次阅读已锁定。');
@@ -356,7 +386,10 @@ $('key-form').addEventListener('submit', async event => {
   button.disabled = true;
   setStatus(`正在验证${recoveryMode ? '恢复码' : '密码'}…`);
   try {
-    accessKey = await unlockVault(secret,recoveryMode ? 'recovery' : 'password');
+    const unlocked = await unlockVault(secret,recoveryMode ? 'recovery' : 'password');
+    accessKey = unlocked.key;
+    recoveryDataKey = unlocked.raw;
+    recoveryEnvelope = unlocked.recoveryEnvelope;
     unlockMethod = recoveryMode ? 'recovery' : 'password';
     renderKeyState();
     if (chosen) await openOnline(chosen);
@@ -364,6 +397,35 @@ $('key-form').addEventListener('submit', async event => {
   } catch (error) {
     setStatus(error?.name === 'OperationError' ? `${recoveryMode ? '恢复码' : '密码'}不正确。` : '无法验证密码，请检查网络后重试。', 'error');
   } finally { button.disabled = false; }
+});
+$('reset-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (unlockMethod !== 'recovery' || !recoveryDataKey) return;
+  const password = $('new-password').value;
+  if (password.length < 16) { setStatus('新密码至少需要 16 个字符。', 'warning'); return; }
+  if (password !== $('confirm-password').value) { setStatus('两次输入的新密码不一致。', 'warning'); return; }
+  const button = $('reset-form').querySelector('button');
+  button.disabled = true;
+  $('reset-result').hidden = true;
+  setStatus('正在浏览器中生成新密码配置…');
+  try {
+    $('reset-config').value = await createResetConfig(password);
+    $('reset-result').hidden = false;
+    $('reset-form').reset();
+    setStatus('配置已生成。请复制完整内容并由仓库所有者登录 GitHub 提交，部署后新密码才会生效。');
+  } catch (error) {
+    setStatus(error?.message === 'STALE' ? '加密配置已更新。请锁定并重新用恢复码解锁，然后再重试。' : '生成失败，请检查网络后重试。', 'error');
+  } finally { button.disabled = false; }
+});
+$('copy-config').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('reset-config').value);
+    setStatus('新密码配置已复制。请在 GitHub 中替换 vault/config.json 的完整内容并提交。');
+  } catch {
+    $('reset-config').focus();
+    $('reset-config').select();
+    setStatus('浏览器未开放一键复制；配置内容已选中，请手动复制。', 'warning');
+  }
 });
 $('previous-page').addEventListener('click', () => goToPage(currentPage - 1));
 $('next-page').addEventListener('click', () => goToPage(currentPage + 1));

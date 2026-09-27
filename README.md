@@ -46,6 +46,6 @@ GitHub Pages 从公开仓库根目录发布静态文件；访问地址为 <https
 
 将访问密码和独立恢复码分别放在仓库外的两个纯文本文件中，然后执行 `node tools/encrypt-vault.mjs /path/to/pdfs /path/to/password-file /path/to/recovery-code-file`。脚本按 `pdf-catalog.js` 的 `filename` 寻找原始 PDF，在 `vault/` 生成密文和不含秘密的配置。只提交密文、目录和阅读器代码；不要将秘密或原始 PDF 加入 Git。
 
-忘记密码时，可在网页点击「忘记密码？」并输入独立恢复码直接解锁。要更改所有设备的访问密码，仓库拥有者在授权的检出目录执行 `node tools/reset-password.mjs /path/to/recovery-code-file /path/to/new-password-file`，核对后发布更新的 `vault/config.json`。公开网页不持有 GitHub 写入权限，也不提供访客自助修改全站密码的接口。若恢复码也丢失，必须用原始 PDF 重新生成加密文件。
+忘记密码时，可在网页点击「忘记密码？」并输入独立恢复码直接解锁。验证后可在网页输入新密码并生成更新后的配置，复制生成的完整 JSON，在已登录且具有写入权限的 GitHub 仓库中编辑 `vault/config.json` 并提交到 `main`；等待 Pages 部署完成，再用新密码验证。无需在使用的设备上安装 Node.js。公开网页无法自行提交修改，访客即使打开重置表单，也不能仅凭网页更改全站密码；须妥善保管恢复码和 GitHub 账户。网页生成的配置不含新密码或恢复码明文。若偏好命令行，仓库拥有者也可在授权的检出目录执行 `node tools/reset-password.mjs /path/to/recovery-code-file /path/to/new-password-file`，核对后发布更新的 `vault/config.json`。若恢复码也丢失，必须用原始 PDF 重新生成加密文件。
 
 GitHub Pages 是公开静态站点：这个密码保护当前 PDF 密文的读取，不保护书架页面，也无法阻止取得 Git 历史的人用过去的密文和过去泄露的旧密钥读取旧版本。若需撤销旧密钥持有者的历史读取能力，需要迁移旧仓库和清理缓存；单纯重置密码不能做到这一点。
