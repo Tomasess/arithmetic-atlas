@@ -7,6 +7,13 @@ const $ = id => document.getElementById(id);
 const customPrefix = 'arithmetic-atlas.pdf-outline.v1.';
 const byId = new Map(pdfCatalog.map(item => [item.id, item]));
 const cleanName = name => name.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+const vaultMagic = 'ATLASPDF1';
+const fragment = new URLSearchParams(location.hash.slice(1));
+const initialId = fragment.has('key') ? fragment.get('doc') : decodeURIComponent(location.hash.slice(1));
+const validKey = value => /^[a-f\d]{64}$/i.test(value) ? value.toLowerCase() : null;
+const rememberedKey = (() => { try { return sessionStorage.getItem('arithmetic-atlas.vault-key'); } catch { return null; } })();
+let accessKey = validKey(fragment.get('key') || '') || validKey(rememberedKey || '');
+if (accessKey) { try { sessionStorage.setItem('arithmetic-atlas.vault-key', accessKey); } catch { /* Private browsing may disable storage. */ } }
 let chosen = null;
 let pdf = null;
 let currentPage = 1;
@@ -15,6 +22,19 @@ let renderToken = 0;
 let builtIn = [];
 let entries = [];
 let selectedFile = null;
+let loadToken = 0;
+
+function updateAddress() {
+  const hash = accessKey ? `#key=${accessKey}${chosen ? `&doc=${chosen.id}` : ''}` : chosen ? `#${chosen.id}` : '';
+  history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+}
+
+function renderKeyState() {
+  $('key-form').classList.toggle('ready', Boolean(accessKey));
+  $('key-state').textContent = accessKey ? '访问密钥已在本次会话中启用。在线文件在此浏览器解密。' : '密钥只在当前浏览器会话中使用，不会发送给本站。';
+  $('key-form').querySelector('button').textContent = accessKey ? '清除本次密钥' : '启用在线阅读';
+  $('access-key').value = '';
+}
 
 function setStatus(message, kind = '') {
   $('reader-status').textContent = message;
@@ -46,6 +66,7 @@ function catalogue() {
 }
 
 async function releaseDocument() {
+  loadToken++;
   renderToken++;
   renderTask?.cancel();
   renderTask = null;
@@ -53,6 +74,8 @@ async function releaseDocument() {
   pdf = null;
   if (old) await old.destroy().catch(() => {});
   selectedFile = null;
+  builtIn = [];
+  entries = [];
   $('reader-area').hidden = true;
   $('reader-empty').hidden = false;
   $('pdf-canvas').width = $('pdf-canvas').height = 0;
@@ -76,13 +99,14 @@ function showDescription(doc) {
 }
 
 async function selectDocument(doc) {
-  if (chosen?.id === doc.id && !selectedFile) return;
+  if (chosen?.id === doc.id && (pdf || $('reader-status').textContent.startsWith('正在'))) return;
   await releaseDocument();
   chosen = doc;
   showDescription(doc);
-  $('reader-empty').querySelector('p').textContent = '目录已就绪。选择本机对应的 PDF 开始阅读。';
-  setStatus('等待选择本机 PDF；本站不会上传或保存文件。');
-  history.replaceState(null, '', `#${doc.id}`);
+  $('reader-empty').querySelector('p').textContent = '目录已就绪。可在线打开，也可选择本机 PDF。';
+  setStatus(accessKey ? '正在准备在线文件…' : '启用访问密钥即可在线打开；也可选择本机 PDF。');
+  updateAddress();
+  if (accessKey) await openOnline(doc);
 }
 
 function customKey() {
@@ -172,27 +196,27 @@ function renderOutline() {
   });
 }
 
-async function loadFile(file) {
-  if (!file) return;
-  if (file.size > 100 * 1024 * 1024) { setStatus('PDF 超过 100 MB，请用本机阅读器打开。', 'error'); return; }
-  if (file.size < 5 || (await file.slice(0, 5).text()) !== '%PDF-') { setStatus('所选文件不是有效的 PDF。', 'error'); return; }
+async function openBytes(bytes, {file = null, documentItem = null, label = ''} = {}) {
   await releaseDocument();
+  const token = loadToken;
   selectedFile = file;
-  setStatus(`正在打开 ${file.name}…`);
+  if (documentItem) chosen = documentItem;
+  setStatus(`正在打开 ${label}…`);
   try {
-    const task = pdfjs.getDocument({ data:new Uint8Array(await file.arrayBuffer()) });
-    pdf = await task.promise;
-    const matched = pdfCatalog.find(item => cleanName(item.filename) === cleanName(file.name));
-    if (matched && matched.pages === pdf.numPages) chosen = matched;
-    else if (chosen && chosen.pages === pdf.numPages && cleanName(chosen.filename) === cleanName(file.name)) { /* Keep selected match. */ }
-    else chosen = null;
+    const task = pdfjs.getDocument({ data:new Uint8Array(bytes) });
+    const loaded = await task.promise;
+    if (token !== loadToken) { await loaded.destroy(); return; }
+    pdf = loaded;
+    const matched = documentItem || (file && pdfCatalog.find(item => cleanName(item.filename) === cleanName(file.name)));
+    chosen = matched?.pages === pdf.numPages ? matched : null;
     if (matched && !chosen) setStatus('这份文件的页数与编排目录不符，已改用 PDF 自带书签或手动章节。', 'warning');
     showDescription(chosen);
     if (!chosen) {
-      $('document-title').textContent = file.name;
+      $('document-title').textContent = label;
       $('document-kind').textContent = `本机 PDF / ${pdf.numPages} 页`;
     }
     builtIn = await extractOutline((await pdf.getOutline()) || []);
+    if (token !== loadToken) return;
     entries = readCustom();
     currentPage = 1;
     $('reader-empty').hidden = true;
@@ -201,11 +225,45 @@ async function loadFile(file) {
     $('page-number').max = String(pdf.numPages);
     $('page-total').textContent = `/ ${pdf.numPages}`;
     renderOutline();
-    if ($('reader-status').dataset.kind !== 'warning') setStatus(`${file.name} · ${pdf.numPages} 页 · ${builtIn.length ? '已读取原有书签' : chosen?.toc ? '使用本站编排目录' : '可添加个人目录'}`);
+    if ($('reader-status').dataset.kind !== 'warning') setStatus(`${label} · ${pdf.numPages} 页 · ${builtIn.length ? '已读取原有书签' : chosen?.toc ? '使用本站编排目录' : '可添加个人目录'}`);
     await renderPage();
   } catch (error) {
+    if (token !== loadToken) return;
     await releaseDocument();
     setStatus(error?.name === 'PasswordException' ? 'PDF 已加密，请使用未加密的个人副本。' : '无法打开该 PDF；请确认文件未损坏。', 'error');
+  }
+}
+
+async function loadFile(file) {
+  if (!file) return;
+  if (file.size > 100 * 1024 * 1024) { setStatus('PDF 超过 100 MB，请用本机阅读器打开。', 'error'); return; }
+  if (file.size < 5 || (await file.slice(0, 5).text()) !== '%PDF-') { setStatus('所选文件不是有效的 PDF。', 'error'); return; }
+  await openBytes(await file.arrayBuffer(), {file,label:file.name});
+}
+
+async function openOnline(doc) {
+  if (!accessKey) { setStatus('请先用私人链接打开，或粘贴访问密钥。', 'warning'); $('access-key').focus(); return; }
+  await releaseDocument();
+  chosen = doc;
+  showDescription(doc);
+  const token = loadToken;
+  setStatus(`正在下载 ${doc.title} 的加密文件…`);
+  try {
+    const response = await fetch(`./vault/${doc.id}.atlas`, {cache:'no-store'});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = new Uint8Array(await response.arrayBuffer());
+    if (token !== loadToken) return;
+    const marker = new TextEncoder().encode(vaultMagic);
+    if (data.length < marker.length + 12 + 16 || !marker.every((byte,index) => data[index] === byte)) throw new Error('FORMAT');
+    setStatus(`正在本机解密 ${doc.title}…`);
+    const keyBytes = Uint8Array.from(accessKey.match(/.{2}/g), x => parseInt(x,16));
+    const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:data.slice(marker.length,marker.length+12)},key,data.slice(marker.length+12));
+    if (token !== loadToken) return;
+    await openBytes(plain, {documentItem:doc,label:doc.title});
+  } catch (error) {
+    if (token !== loadToken) return;
+    setStatus(error?.name === 'OperationError' ? '访问密钥不正确，或加密文件已损坏。' : '暂时无法取得在线加密文件，请稍后重试或选择本机 PDF。', 'error');
   }
 }
 
@@ -251,11 +309,34 @@ function goToPage(value) {
 }
 
 catalogue();
-const starting = decodeURIComponent(location.hash.slice(1));
-if (byId.has(starting)) selectDocument(byId.get(starting));
+renderKeyState();
+if (byId.has(initialId)) selectDocument(byId.get(initialId));
+$('open-online').addEventListener('click', () => { if (chosen) openOnline(chosen); });
 $('choose-file').addEventListener('click', () => $('pdf-file').click());
-$('open-other').addEventListener('click', async () => { await releaseDocument(); chosen = null; showDescription(null); $('pdf-file').click(); });
+$('open-other').addEventListener('click', async () => { await releaseDocument(); chosen = null; updateAddress(); showDescription(null); $('pdf-file').click(); });
 $('pdf-file').addEventListener('change', event => { loadFile(event.target.files?.[0]); event.target.value = ''; });
+$('key-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (accessKey) {
+    await releaseDocument();
+    accessKey = null;
+    try { sessionStorage.removeItem('arithmetic-atlas.vault-key'); } catch { /* No browser session storage available. */ }
+    updateAddress();
+    renderKeyState();
+    setStatus('已从本次会话移除访问密钥。');
+    return;
+  }
+  const input = $('access-key').value.trim();
+  const supplied = input.includes('#key=') ? new URLSearchParams(input.split('#')[1]).get('key') : input;
+  const key = validKey(supplied || '');
+  if (!key) { setStatus('访问密钥应为 64 位十六进制字符；也可粘贴完整私人链接。', 'warning'); return; }
+  accessKey = key;
+  try { sessionStorage.setItem('arithmetic-atlas.vault-key', key); } catch { /* The URL fragment still carries the key. */ }
+  updateAddress();
+  renderKeyState();
+  if (chosen) await openOnline(chosen);
+  else setStatus('访问密钥已启用。选择左侧资料即可在线打开。');
+});
 $('previous-page').addEventListener('click', () => goToPage(currentPage - 1));
 $('next-page').addEventListener('click', () => goToPage(currentPage + 1));
 $('page-form').addEventListener('submit', event => { event.preventDefault(); goToPage($('page-number').value); });

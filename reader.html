@@ -18,8 +18,8 @@
   </header>
   <main class="reader-main">
     <section class="reader-intro" aria-labelledby="catalog-title">
-      <div><span class="eyebrow">PERSONAL PDF READER / 08 DOCUMENTS</span><h1 id="catalog-title">给没有书签的 PDF，<br>补上一张可靠的目录。</h1><p>按主题整理你手头的 8 份资料。选择本机文件后，即可在右侧逐页阅读、点章节跳转；PDF 不会上传到本站服务器或公开仓库。</p></div>
-      <div class="privacy-card"><strong>文件只在本机打开</strong><span>公开的是目录数据与阅读器代码，不是你持有的 PDF。自定义章节标题和页码仅保存在此浏览器；重开页面需要重新选择文件。</span></div>
+      <div><span class="eyebrow">PERSONAL PDF READER / 08 DOCUMENTS</span><h1 id="catalog-title">给没有书签的 PDF，<br>补上一张可靠的目录。</h1><p>按主题整理你手头的 8 份资料。用私人访问链接即可在线阅读，点目录跳转；也可以继续选择本机文件。</p></div>
+      <div class="privacy-card"><strong>在线文件已加密</strong><span>公开仓库只存加密后的数据，浏览器取得密钥后在本机解密。完整访问链接等同于密钥，请勿转发；个人章节仍只保存在此浏览器。</span></div>
     </section>
     <div class="reader-workspace">
       <aside class="catalog-panel" aria-label="已分类的 PDF">
@@ -28,7 +28,8 @@
         <button id="open-other" class="other-file" type="button">选择其他本机 PDF <span aria-hidden="true">↗</span></button>
       </aside>
       <section class="document-panel" aria-labelledby="document-title">
-        <div class="document-heading"><div><span id="document-kind" class="eyebrow">SELECT A DOCUMENT</span><h2 id="document-title">选择左侧资料开始阅读</h2><p id="document-summary">如果 PDF 本身没有书签，本站已为其中四份资料整理了章节页码；其他文件也可以自己添加目录。</p></div><div id="document-actions" class="document-actions" hidden><button id="choose-file" class="primary-button" type="button">选择本机 PDF</button><a id="source-link" href="#" target="_blank" rel="noopener noreferrer">查看出版方 / 作者来源 ↗</a></div></div>
+        <div class="document-heading"><div><span id="document-kind" class="eyebrow">SELECT A DOCUMENT</span><h2 id="document-title">选择左侧资料开始阅读</h2><p id="document-summary">如果 PDF 本身没有书签，本站已为其中四份资料整理了章节页码；其他文件也可以自己添加目录。</p></div><div id="document-actions" class="document-actions" hidden><button id="open-online" class="primary-button" type="button">在线打开加密 PDF</button><button id="choose-file" class="secondary-button" type="button">选择本机 PDF</button><a id="source-link" href="#" target="_blank" rel="noopener noreferrer">查看出版方 / 作者来源 ↗</a></div></div>
+        <form id="key-form" class="key-form"><label for="access-key">没有私人链接？粘贴访问密钥或完整链接</label><div><input id="access-key" type="password" autocomplete="off" spellcheck="false" placeholder="64 位访问密钥"><button type="submit">启用在线阅读</button></div><small id="key-state">密钥只在当前浏览器会话中使用，不会发送给本站。</small></form>
         <div id="reader-status" class="reader-status" role="status" aria-live="polite">未选择文件</div>
         <div id="reader-area" class="reader-area" hidden>
           <aside class="outline-panel" aria-label="章节目录">
@@ -38,7 +39,7 @@
           </aside>
           <div class="viewer-panel"><div class="viewer-toolbar"><button id="previous-page" type="button" aria-label="上一页">←</button><form id="page-form" aria-label="跳转到页码"><label for="page-number">PDF 页码</label><input id="page-number" type="number" min="1" step="1" inputmode="numeric" required><span id="page-total">/ —</span></form><button id="next-page" type="button" aria-label="下一页">→</button><label class="zoom-label" for="zoom-select">缩放</label><select id="zoom-select" aria-label="页面缩放"><option value="fit">适合宽度</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></div><div class="page-stage" id="page-stage"><div id="canvas-wrap" class="canvas-wrap"><canvas id="pdf-canvas" aria-label="PDF 当前页面"></canvas></div><p class="viewer-note">目录页码是 PDF 实际页码，不一定等于纸面印刷页码。大文件首次打开可能稍慢。</p></div></div>
         </div>
-        <div class="reader-empty" id="reader-empty"><span>01 — 08</span><p>目录先选文档，再选择你本机的 PDF。</p><small>不需要登录，也不会将文件传到网络。</small></div>
+        <div class="reader-empty" id="reader-empty"><span>01 — 08</span><p>先从左侧选择文档，再在线打开。</p><small>如果没有访问密钥，也可以选择本机 PDF。</small></div>
       </section>
     </div>
   </main>
