@@ -8,7 +8,7 @@
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <title>PDF 阅读目录 · 算术之间</title>
   <link rel="stylesheet" href="./reader.css?v=20260927-online">
-  <script type="module" src="./reader.js?v=20260927-online"></script>
+  <script type="module" src="./reader.js?v=20260927-password"></script>
 </head>
 <body>
   <a class="skip-link" href="#catalog-title">跳到 PDF 目录</a>
@@ -18,8 +18,8 @@
   </header>
   <main class="reader-main">
     <section class="reader-intro" aria-labelledby="catalog-title">
-      <div><span class="eyebrow">PERSONAL PDF READER / 08 DOCUMENTS</span><h1 id="catalog-title">给没有书签的 PDF，<br>补上一张可靠的目录。</h1><p>按主题整理你手头的 8 份资料。用私人访问链接即可在线阅读，点目录跳转；也可以继续选择本机文件。</p></div>
-      <div class="privacy-card"><strong>在线文件已加密</strong><span>公开仓库只存加密后的数据，浏览器取得密钥后在本机解密。完整访问链接等同于密钥，请勿转发；个人章节仍只保存在此浏览器。</span></div>
+      <div><span class="eyebrow">PERSONAL PDF READER / 08 DOCUMENTS</span><h1 id="catalog-title">给没有书签的 PDF，<br>补上一张可靠的目录。</h1><p>按主题整理你手头的 8 份资料。输入密码即可在线阅读、按章节跳转；也可以继续选择本机文件。</p></div>
+      <div class="privacy-card"><strong>在线文件已加密</strong><span>公开仓库只保存密文。密码或独立恢复码在浏览器内解开资料，不发送给站点；本次解锁只保留在当前标签页。</span></div>
     </section>
     <div class="reader-workspace">
       <aside class="catalog-panel" aria-label="已分类的 PDF">
@@ -29,7 +29,9 @@
       </aside>
       <section class="document-panel" aria-labelledby="document-title">
         <div class="document-heading"><div><span id="document-kind" class="eyebrow">SELECT A DOCUMENT</span><h2 id="document-title">选择左侧资料开始阅读</h2><p id="document-summary">如果 PDF 本身没有书签，本站已为其中四份资料整理了章节页码；其他文件也可以自己添加目录。</p></div><div id="document-actions" class="document-actions" hidden><button id="open-online" class="primary-button" type="button">在线打开加密 PDF</button><button id="choose-file" class="secondary-button" type="button">选择本机 PDF</button><a id="source-link" href="#" target="_blank" rel="noopener noreferrer">查看出版方 / 作者来源 ↗</a></div></div>
-        <form id="key-form" class="key-form"><label for="access-key">没有私人链接？粘贴访问密钥或完整链接</label><div><input id="access-key" type="password" autocomplete="off" spellcheck="false" placeholder="64 位访问密钥"><button type="submit">启用在线阅读</button></div><small id="key-state">密钥只在当前浏览器会话中使用，不会发送给本站。</small></form>
+        <form id="key-form" class="key-form"><label for="access-key">输入访问密码</label><div><input id="access-key" type="password" autocomplete="off" spellcheck="false" required placeholder="访问密码"><button type="submit">解锁 PDF</button></div><small id="key-state">密码和恢复码只在当前浏览器中处理，不会发送给网站。</small></form>
+        <button id="recovery-help" class="recovery-help" type="button">忘记密码？使用恢复码</button>
+        <p id="recovery-note" class="recovery-note" hidden>恢复码可立即恢复阅读；全站密码重置需要站点所有者用 GitHub 写入权限更新加密配置。访客无法在这个页面更改站点密码。</p>
         <div id="reader-status" class="reader-status" role="status" aria-live="polite">未选择文件</div>
         <div id="reader-area" class="reader-area" hidden>
           <aside class="outline-panel" aria-label="章节目录">
@@ -39,7 +41,7 @@
           </aside>
           <div class="viewer-panel"><div class="viewer-toolbar"><button id="previous-page" type="button" aria-label="上一页">←</button><form id="page-form" aria-label="跳转到页码"><label for="page-number">PDF 页码</label><input id="page-number" type="number" min="1" step="1" inputmode="numeric" required><span id="page-total">/ —</span></form><button id="next-page" type="button" aria-label="下一页">→</button><label class="zoom-label" for="zoom-select">缩放</label><select id="zoom-select" aria-label="页面缩放"><option value="fit">适合宽度</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select></div><div class="page-stage" id="page-stage"><div id="canvas-wrap" class="canvas-wrap"><canvas id="pdf-canvas" aria-label="PDF 当前页面"></canvas></div><p class="viewer-note">目录页码是 PDF 实际页码，不一定等于纸面印刷页码。大文件首次打开可能稍慢。</p></div></div>
         </div>
-        <div class="reader-empty" id="reader-empty"><span>01 — 08</span><p>先从左侧选择文档，再在线打开。</p><small>如果没有访问密钥，也可以选择本机 PDF。</small></div>
+        <div class="reader-empty" id="reader-empty"><span>01 — 08</span><p>先从左侧选择文档，再在线打开。</p><small>如果没有密码，也可以选择本机 PDF。</small></div>
       </section>
     </div>
   </main>

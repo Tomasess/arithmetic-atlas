@@ -1,29 +1,32 @@
-// Usage: node tools/encrypt-vault.mjs /path/to/pdf-dir /path/to/64-hex-key-file
-// Keep the key file outside this repository. Never publish unencrypted PDFs.
-import { createCipheriv, randomBytes } from 'node:crypto';
+// Usage: node tools/encrypt-vault.mjs /path/to/pdfs /path/to/password-file /path/to/recovery-code-file
+// Keep both secrets outside this public repository. Never publish unencrypted PDFs.
+import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { encryptDocument, iterations, wrapDataKey } from './vault-crypto.mjs';
 
-const [inputDir, keyFile] = process.argv.slice(2);
-if (!inputDir || !keyFile) throw new Error('Provide PDF directory and key file.');
+const [inputDir, passwordFile, recoveryFile] = process.argv.slice(2);
+if (!inputDir || !passwordFile || !recoveryFile) throw new Error('Provide PDF directory, password file and recovery-code file.');
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoot = join(projectRoot,'public');
-const catalogPath = join(sourceRoot,'pdf-catalog.js');
-const siteRoot = await access(catalogPath).then(() => sourceRoot, () => projectRoot);
+const siteRoot = await access(join(sourceRoot,'pdf-catalog.js')).then(() => sourceRoot, () => projectRoot);
 const { pdfCatalog } = await import(pathToFileURL(join(siteRoot,'pdf-catalog.js')).href);
-const hex = (await readFile(keyFile, 'utf8')).trim();
-if (!/^[a-f\d]{64}$/i.test(hex)) throw new Error('Key file must contain 64 hexadecimal characters.');
-const key = Buffer.from(hex, 'hex');
-const outputDir = join(siteRoot,'vault');
-await mkdir(outputDir, { recursive:true });
+const password = (await readFile(passwordFile,'utf8')).trim();
+const recovery = (await readFile(recoveryFile,'utf8')).trim();
+if (password === recovery) throw new Error('Password and recovery code must differ.');
+const dataKey = randomBytes(32);
+const config = { version:2, kdf:{name:'PBKDF2',hash:'SHA-256',iterations}, password:wrapDataKey(dataKey,password), recovery:wrapDataKey(dataKey,recovery) };
+const encrypted = [];
 for (const item of pdfCatalog) {
-  const input = await readFile(resolve(inputDir, item.filename));
-  if (!input.subarray(0,5).equals(Buffer.from('%PDF-'))) throw new Error(`${item.id}: invalid PDF header`);
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const content = Buffer.concat([cipher.update(input),cipher.final()]);
-  const output = Buffer.concat([Buffer.from('ATLASPDF1'),iv,content,cipher.getAuthTag()]);
-  await writeFile(resolve(outputDir, `${item.id}.atlas`), output, {mode:0o644});
-  console.log(`${item.id}: ${input.length} bytes → ${output.length} encrypted bytes`);
+  const input = await readFile(resolve(inputDir,item.filename));
+  encrypted.push([item.id,encryptDocument(input,item.id,dataKey)]);
 }
+const outputDir = join(siteRoot,'vault');
+await mkdir(outputDir,{recursive:true});
+for (const [id,data] of encrypted) {
+  await writeFile(join(outputDir,`${id}.atlas`),data,{mode:0o644});
+  console.log(`${id}: encrypted ${data.length} bytes`);
+}
+await writeFile(join(outputDir,'config.json'),JSON.stringify(config,null,2)+'\n',{mode:0o644});
+console.log('Vault updated. Password and recovery code were not written into the repository.');

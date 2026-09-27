@@ -20,7 +20,7 @@ GitHub Pages 从公开仓库根目录发布静态文件；访问地址为 <https
 - 书目与链接于 2026-09-20 核对。每条的 `url` 是原始来源；存在 `evidence` 时，它为辅助核对来源。
 - 出版方：Oxford Academic、IEEE、Springer；作者/高校：UCLA、John Hauser、FloPoCo；预印本：arXiv；代码：官方 CVFPU 仓库。
 - 免费材料和需要购买/机构权限的材料明确区分；未得到再分发许可的第三方 PDF 不新增托管。
-- 公开仓库只存放 AES-256-GCM 加密文件，没有明文 PDF 或解密密钥。阅读器从 GitHub Pages 下载密文，在浏览器中解密；密钥只来自私人链接或用户输入，并只在当前浏览器会话中暂存。完整私人链接等同于密钥，不应转发。个人章节仍只保存在本机浏览器。加密并不自动授予资料再分发许可；请遵守所持副本的授权条款。
+- 当前文件使用随机数据密钥和 AES-256-GCM 加密。密码和独立恢复码通过 PBKDF2-HMAC-SHA256（600,000 次、独立盐）分别封装数据密钥。阅读器在浏览器中验证并解密；密码、恢复码和明文 PDF 均不提交到仓库，也不写入 URL 或浏览器存储。当前标签页关闭后需要重新输入。个人章节仍只保存在本机浏览器。加密并不自动授予资料再分发许可；请遵守所持副本的授权条款。
 - 阅读器使用本地托管的 Mozilla PDF.js 5.6.205（Apache-2.0；许可见 `public/vendor/pdfjs/LICENSE`），没有运行时 CDN 依赖。
 - 学习目标与顺序为本站编排；不作为原作者课程大纲或跨工艺 PPA 结论。
 
@@ -44,4 +44,8 @@ GitHub Pages 从公开仓库根目录发布静态文件；访问地址为 <https
 
 ## 更新个人加密资料
 
-将访问密钥的 64 位十六进制字符串放在仓库外的纯文本文件中，然后执行 `node tools/encrypt-vault.mjs /path/to/pdfs /path/to/key-file`。脚本按 `public/pdf-catalog.js` 的 `filename` 寻找本机 PDF，并在 `public/vault/` 生成密文。只提交密文、目录和阅读器代码；不要将密钥文件或原始 PDF 加入 Git。换密钥时需要重新加密全部 8 份资料，并更新私人访问链接。
+将访问密码和独立恢复码分别放在仓库外的两个纯文本文件中，然后执行 `node tools/encrypt-vault.mjs /path/to/pdfs /path/to/password-file /path/to/recovery-code-file`。脚本按 `pdf-catalog.js` 的 `filename` 寻找原始 PDF，在 `vault/` 生成密文和不含秘密的配置。只提交密文、目录和阅读器代码；不要将秘密或原始 PDF 加入 Git。
+
+忘记密码时，可在网页点击「忘记密码？」并输入独立恢复码直接解锁。要更改所有设备的访问密码，仓库拥有者在授权的检出目录执行 `node tools/reset-password.mjs /path/to/recovery-code-file /path/to/new-password-file`，核对后发布更新的 `vault/config.json`。公开网页不持有 GitHub 写入权限，也不提供访客自助修改全站密码的接口。若恢复码也丢失，必须用原始 PDF 重新生成加密文件。
+
+GitHub Pages 是公开静态站点：这个密码保护当前 PDF 密文的读取，不保护书架页面，也无法阻止取得 Git 历史的人用过去的密文和过去泄露的旧密钥读取旧版本。若需撤销旧密钥持有者的历史读取能力，需要迁移旧仓库和清理缓存；单纯重置密码不能做到这一点。

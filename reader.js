@@ -7,13 +7,14 @@ const $ = id => document.getElementById(id);
 const customPrefix = 'arithmetic-atlas.pdf-outline.v1.';
 const byId = new Map(pdfCatalog.map(item => [item.id, item]));
 const cleanName = name => name.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
-const vaultMagic = 'ATLASPDF1';
+const vaultMagic = 'ATLASPDF2';
+const wrapContext = new TextEncoder().encode('arithmetic-atlas:data-key:v2');
 const fragment = new URLSearchParams(location.hash.slice(1));
 const initialId = fragment.has('key') ? fragment.get('doc') : decodeURIComponent(location.hash.slice(1));
-const validKey = value => /^[a-f\d]{64}$/i.test(value) ? value.toLowerCase() : null;
-const rememberedKey = (() => { try { return sessionStorage.getItem('arithmetic-atlas.vault-key'); } catch { return null; } })();
-let accessKey = validKey(fragment.get('key') || '') || validKey(rememberedKey || '');
-if (accessKey) { try { sessionStorage.setItem('arithmetic-atlas.vault-key', accessKey); } catch { /* Private browsing may disable storage. */ } }
+if (fragment.has('key')) history.replaceState(null,'',`${location.pathname}${location.search}${initialId ? `#${encodeURIComponent(initialId)}` : ''}`);
+let accessKey = null;
+let unlockMethod = null;
+let recoveryMode = false;
 let chosen = null;
 let pdf = null;
 let currentPage = 1;
@@ -25,15 +26,38 @@ let selectedFile = null;
 let loadToken = 0;
 
 function updateAddress() {
-  const hash = accessKey ? `#key=${accessKey}${chosen ? `&doc=${chosen.id}` : ''}` : chosen ? `#${chosen.id}` : '';
+  const hash = chosen ? `#${chosen.id}` : '';
   history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
 }
 
 function renderKeyState() {
   $('key-form').classList.toggle('ready', Boolean(accessKey));
-  $('key-state').textContent = accessKey ? '访问密钥已在本次会话中启用。在线文件在此浏览器解密。' : '密钥只在当前浏览器会话中使用，不会发送给本站。';
-  $('key-form').querySelector('button').textContent = accessKey ? '清除本次密钥' : '启用在线阅读';
+  $('key-form').querySelector('label').textContent = accessKey ? '已解锁本次阅读' : recoveryMode ? '输入独立恢复码' : '输入访问密码';
+  $('key-form').querySelector('button').textContent = accessKey ? '锁定阅读' : recoveryMode ? '用恢复码解锁' : '解锁 PDF';
+  $('access-key').placeholder = recoveryMode ? '恢复码' : '访问密码';
+  $('access-key').hidden = Boolean(accessKey);
+  $('access-key').required = !accessKey;
+  $('key-state').textContent = accessKey ? `已通过${unlockMethod === 'recovery' ? '恢复码' : '密码'}解锁。仅在这个标签页有效，关闭后需重新输入。` : '密码和恢复码只在当前浏览器中处理，不会发送给网站。';
+  $('recovery-help').hidden = Boolean(accessKey);
+  $('recovery-help').textContent = recoveryMode ? '返回密码输入' : '忘记密码？使用恢复码';
+  $('recovery-note').hidden = !recoveryMode || Boolean(accessKey);
   $('access-key').value = '';
+}
+
+async function unlockVault(secret, method) {
+  const response = await fetch('./vault/config.json?v=2',{cache:'no-store'});
+  if (!response.ok) throw new Error('CONFIG');
+  const config = await response.json();
+  if (config.version !== 2 || config.kdf?.name !== 'PBKDF2' || config.kdf?.hash !== 'SHA-256' || config.kdf?.iterations !== 600000) throw new Error('CONFIG');
+  const envelope = config[method];
+  if (!/^[0-9a-f]{32}$/i.test(envelope?.salt || '') || typeof envelope.wrapped !== 'string') throw new Error('CONFIG');
+  const salt = Uint8Array.from(envelope.salt.match(/.{2}/g),x=>parseInt(x,16));
+  const raw = Uint8Array.from(atob(envelope.wrapped),c=>c.charCodeAt(0));
+  if (raw.length !== 60) throw new Error('CONFIG');
+  const material = await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),'PBKDF2',false,['deriveKey']);
+  const wrappingKey = await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:config.kdf.iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['decrypt']);
+  const dataKey = await crypto.subtle.decrypt({name:'AES-GCM',iv:raw.slice(0,12),additionalData:wrapContext},wrappingKey,raw.slice(12));
+  return crypto.subtle.importKey('raw',dataKey,'AES-GCM',false,['decrypt']);
 }
 
 function setStatus(message, kind = '') {
@@ -104,7 +128,7 @@ async function selectDocument(doc) {
   chosen = doc;
   showDescription(doc);
   $('reader-empty').querySelector('p').textContent = '目录已就绪。可在线打开，也可选择本机 PDF。';
-  setStatus(accessKey ? '正在准备在线文件…' : '启用访问密钥即可在线打开；也可选择本机 PDF。');
+  setStatus(accessKey ? '正在准备在线文件…' : '输入密码即可在线打开；也可选择本机 PDF。');
   updateAddress();
   if (accessKey) await openOnline(doc);
 }
@@ -242,28 +266,26 @@ async function loadFile(file) {
 }
 
 async function openOnline(doc) {
-  if (!accessKey) { setStatus('请先用私人链接打开，或粘贴访问密钥。', 'warning'); $('access-key').focus(); return; }
+  if (!accessKey) { setStatus('请先输入密码，或使用独立恢复码。', 'warning'); $('access-key').focus(); return; }
   await releaseDocument();
   chosen = doc;
   showDescription(doc);
   const token = loadToken;
   setStatus(`正在下载 ${doc.title} 的加密文件…`);
   try {
-    const response = await fetch(`./vault/${doc.id}.atlas`, {cache:'no-store'});
+    const response = await fetch(`./vault/${doc.id}.atlas?v=2`, {cache:'no-store'});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = new Uint8Array(await response.arrayBuffer());
     if (token !== loadToken) return;
     const marker = new TextEncoder().encode(vaultMagic);
     if (data.length < marker.length + 12 + 16 || !marker.every((byte,index) => data[index] === byte)) throw new Error('FORMAT');
     setStatus(`正在本机解密 ${doc.title}…`);
-    const keyBytes = Uint8Array.from(accessKey.match(/.{2}/g), x => parseInt(x,16));
-    const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
-    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:data.slice(marker.length,marker.length+12)},key,data.slice(marker.length+12));
+    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:data.slice(marker.length,marker.length+12),additionalData:new TextEncoder().encode(doc.id)},accessKey,data.slice(marker.length+12));
     if (token !== loadToken) return;
     await openBytes(plain, {documentItem:doc,label:doc.title});
   } catch (error) {
     if (token !== loadToken) return;
-    setStatus(error?.name === 'OperationError' ? '访问密钥不正确，或加密文件已损坏。' : '暂时无法取得在线加密文件，请稍后重试或选择本机 PDF。', 'error');
+    setStatus(error?.name === 'OperationError' ? '加密文件验证失败，请联系站点所有者。' : '暂时无法取得在线加密文件，请稍后重试或选择本机 PDF。', 'error');
   }
 }
 
@@ -315,27 +337,33 @@ $('open-online').addEventListener('click', () => { if (chosen) openOnline(chosen
 $('choose-file').addEventListener('click', () => $('pdf-file').click());
 $('open-other').addEventListener('click', async () => { await releaseDocument(); chosen = null; updateAddress(); showDescription(null); $('pdf-file').click(); });
 $('pdf-file').addEventListener('change', event => { loadFile(event.target.files?.[0]); event.target.value = ''; });
+$('recovery-help').addEventListener('click', () => { recoveryMode = !recoveryMode; renderKeyState(); $('access-key').focus(); });
 $('key-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (accessKey) {
     await releaseDocument();
     accessKey = null;
-    try { sessionStorage.removeItem('arithmetic-atlas.vault-key'); } catch { /* No browser session storage available. */ }
+    unlockMethod = null;
     updateAddress();
     renderKeyState();
-    setStatus('已从本次会话移除访问密钥。');
+    setStatus('本次阅读已锁定。');
     return;
   }
-  const input = $('access-key').value.trim();
-  const supplied = input.includes('#key=') ? new URLSearchParams(input.split('#')[1]).get('key') : input;
-  const key = validKey(supplied || '');
-  if (!key) { setStatus('访问密钥应为 64 位十六进制字符；也可粘贴完整私人链接。', 'warning'); return; }
-  accessKey = key;
-  try { sessionStorage.setItem('arithmetic-atlas.vault-key', key); } catch { /* The URL fragment still carries the key. */ }
-  updateAddress();
-  renderKeyState();
-  if (chosen) await openOnline(chosen);
-  else setStatus('访问密钥已启用。选择左侧资料即可在线打开。');
+  const secret = $('access-key').value.trim();
+  $('access-key').value = '';
+  if (secret.length < 16) { setStatus('请输入完整的密码或恢复码。', 'warning'); return; }
+  const button = $('key-form').querySelector('button');
+  button.disabled = true;
+  setStatus(`正在验证${recoveryMode ? '恢复码' : '密码'}…`);
+  try {
+    accessKey = await unlockVault(secret,recoveryMode ? 'recovery' : 'password');
+    unlockMethod = recoveryMode ? 'recovery' : 'password';
+    renderKeyState();
+    if (chosen) await openOnline(chosen);
+    else setStatus('验证成功。请选择左侧 PDF 在线阅读。');
+  } catch (error) {
+    setStatus(error?.name === 'OperationError' ? `${recoveryMode ? '恢复码' : '密码'}不正确。` : '无法验证密码，请检查网络后重试。', 'error');
+  } finally { button.disabled = false; }
 });
 $('previous-page').addEventListener('click', () => goToPage(currentPage - 1));
 $('next-page').addEventListener('click', () => goToPage(currentPage + 1));
